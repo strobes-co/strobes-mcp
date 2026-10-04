@@ -1,0 +1,9 @@
+{
+  "name": "strobes-mcp",
+  "version": "0.1.0",
+  "description": "Manage Strobes assets, findings and engagements from Claude Code (public GraphQL API).",
+  "author": { "name": "Strobes" },
+  "homepage": "https://strobes.co",
+  "keywords": ["strobes", "security", "vulnerability", "assets", "findings", "engagements", "ctem"],
+  "mcpServers": "./.mcp.json"
+}

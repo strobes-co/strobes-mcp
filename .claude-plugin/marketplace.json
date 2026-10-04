@@ -1,0 +1,12 @@
+{
+  "name": "strobes",
+  "owner": { "name": "Strobes" },
+  "metadata": { "description": "Strobes platform MCP plugins for Claude Code." },
+  "plugins": [
+    {
+      "name": "strobes-mcp",
+      "source": "./",
+      "description": "Assets, findings and engagements over the Strobes public API."
+    }
+  ]
+}
