@@ -1,60 +1,53 @@
 ---
 name: strobes
-description: Manage Strobes assets, findings (vulnerabilities) and engagements via the Strobes MCP server. Use when the user wants to list, search, create or update assets, security findings/vulnerabilities, or engagements/assessments in Strobes, or add comments to them. Triggers on "in Strobes", "my assets", "my findings", "create a vulnerability", "list critical findings", "new engagement/assessment".
+description: Search, triage and manage Strobes assets, findings (vulnerabilities) and engagements through the strobes MCP server. Use when the user asks about their security findings or exposure in Strobes — "show my critical findings", "what's exploitable on prod", "triage these vulns", "mark 42 as resolved / accepted risk", "which assets are internet-facing", "create a finding/asset/engagement", "comment on this finding", "sign in to Strobes".
 ---
 
 # Strobes (assets, findings, engagements)
 
-This skill drives the `strobes` MCP server, which wraps the Strobes **public**
-GraphQL API (MasterKey auth). Use it to manage three object types:
+Tools come from the `strobes` MCP server (Strobes public API). For AI agents and
+workspaces, use the companion `strobes-agents` server.
 
-- **Assets** — the things you protect (web apps, mobile apps, network hosts,
-  cloud accounts, code repos).
-- **Findings** (a.k.a. bugs / vulnerabilities) — security issues on assets.
-- **Engagements** — security assessments / pentests scoped to assets.
+## Sign-in (no API key to paste)
+`strobes_whoami` first. If `signed_in` is false: `strobes_login(url?)` → show the user the
+`verification_url` (clickable) and `user_code`; they confirm the code, pick the organization
+and click Authorize → `strobes_login_status(wait_seconds=120)` until `approved`. The login is
+shared with the Strobes CLI; `strobes_use_profile` switches organizations.
 
-## First call
-Always start with `strobes_whoami` to confirm the server is configured
-(host + organization) and reachable. It also returns the enum reference
-(asset types, bug levels, severities, finding states).
+## Finding things
+Prefer the typed filters over hand-written codes:
+- `list_findings(open_only=true, severity=["critical","high"], order_by=["-cvss"])`
+- `list_assets(type=[1], order_by=["-risk_score"])`
+- `list_engagements(search_query='state = 2')`
 
-## Enums (memorise these)
-- **Asset type**: 1=Web, 2=Mobile, 3=Network, 4=Cloud, 7=Code repository.
-- **Bug level** (finding category): 1=Code, 2=Web, 3=Mobile, 4=Network, 5=Cloud, 6=Package.
-- **Severity**: 1=Info, 2=Low, 3=Medium, 4=High, 5=Critical.
-- **Finding state**: 1=Open, 2=Closed/Fixed, 3=False Positive, 4=Accepted Risk, 5=Duplicate, 6=Out of Scope.
-- **Sensitivity**: 1..4 (4=Critical). **Exposed**: 1=Public, 2=Internal.
+Add a DjangoQL `search_query` for anything else (see `references/query-language.md`):
+`exploit_available = "true"`, `title ~ "sql"` (contains), `asset.id = 12`,
+`asset_tags = "prod"`, `finding_tags = "pci"`, `due_date < "2027-01-01"`.
+Strings are quoted, yes/no flags are strings, relations use dots, there is no `like`.
 
-## Searching
-`list_assets`, `list_findings` and `list_engagements` take a `search_query`
-string in the Strobes query language. See `references/query-language.md` for
-the full operator/field list. Common filters:
-- Critical open findings: `list_findings(search_query="severity = 5 and state = 1")`
-- Web assets: `list_assets(search_query="type = 1")`
-- Findings with a public exploit: `list_findings(search_query="exploit_available = true")`
+`get_finding(id)` has the description, evidence, steps, mitigation, CVE/CWE and a web link;
+`get_asset(id)` the asset detail; `strobes_reference` every code table.
 
-## Creating a finding
-`create_finding` requires `title`, `description`, `bug_level`, and at least one
-asset via `asset_id` (or `asset_ids`). For **web** findings (bug_level=2) you
-MUST pass `details` with a non-empty `affected_endpoints`, e.g.:
-`details={"affected_endpoints": ["https://host/login"], "request": "...", "response": "..."}`.
-Set `severity` explicitly; attach to an engagement with `engagement_id`.
+## Codes that matter
+- Severity: 1 info, 2 low, 3 medium, 4 high, 5 critical.
+- Finding state: 0 new, 1 active, 2 resolved, 3 duplicate, 4 not applicable,
+  5 committed, 6 accepted risk, 7 won't fix. Open = new or active.
+- Asset exposure: 1 high (internet-facing), 2 medium, 3 low. Sensitivity 0–4.
+Tools take and return names (`"accepted_risk"`, `"critical"`), not numbers.
 
-## Updating findings
-`update_findings` is a bulk operation keyed by `search_query`. To change one
-finding: `update_findings(search_query="id = 42", state=2)` (mark fixed).
-Marking false-positive: `state=3`. Accepting risk: `state=4`.
-
-## Comments
-`add_finding_comment(bug_id, comment, internal=False)` and
-`add_engagement_comment(engagement_id, comment)`. `internal=True` is only
-honoured for org owners/managers.
+## Changing things
+- `update_findings(search_query, state=..., severity=...)` changes **every** match. Use an
+  exact set (`id in (1, 2, 3)`), confirm the list with the user first, never an open-ended
+  query. It refuses empty matches and >200 matches unless `allow_many=true`.
+  Strobes applies the change in the background: report `applied` vs `pending` honestly. Pending
+  items may need an approver if the org requires approval for state changes.
+- `create_finding(title, description, level, asset_ids, severity, ...)` — web findings need
+  `details={"affected_endpoints": ["https://host/path"]}` (request/response optional).
+- `create_asset(name, type, url|hostname|ipaddress, sensitivity, exposure, tags)`.
+- `create_engagement(...)`, `add_finding_comment`, `add_engagement_comment`, `list_comments`.
 
 ## Guidance
-- IDs: assets and findings use **numeric** ids; engagements use **UUIDs**.
-- Prefer narrow `search_query` filters and small `page_size` — the org may have
-  thousands of records.
-- Tools return a structured `{"error": "..."}` on failure; read it and adjust
-  (e.g. a missing required field) rather than retrying blindly.
-- This server is scoped to one organization (set at config time); you cannot
-  switch orgs at call time.
+- Asset and finding ids are numbers; engagement ids are UUIDs.
+- Keep pages small (`page_size` ≤ 25) and follow `next_page`; orgs often have thousands of
+  findings.
+- Errors are tool errors with a next step (sign in again, fix a field) — follow them.

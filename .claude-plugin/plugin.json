@@ -1,9 +1,11 @@
 {
   "name": "strobes-mcp",
-  "version": "0.1.0",
-  "description": "Manage Strobes assets, findings and engagements from Claude Code (public GraphQL API).",
-  "author": { "name": "Strobes" },
-  "homepage": "https://strobes.co",
-  "keywords": ["strobes", "security", "vulnerability", "assets", "findings", "engagements", "ctem"],
-  "mcpServers": "./.mcp.json"
+  "version": "0.2.0",
+  "description": "Search and triage Strobes findings, manage assets and engagements from Claude Code. Browser sign-in, no API keys to paste.",
+  "author": { "name": "Strobes", "url": "https://strobes.co" },
+  "homepage": "https://github.com/strobes-co/strobes-mcp",
+  "repository": "https://github.com/strobes-co/strobes-mcp",
+  "license": "GPL-3.0-or-later",
+  "keywords": ["strobes", "mcp", "security", "vulnerability", "assets", "findings", "engagements", "ctem"],
+  "mcpServers": "./.claude-plugin/mcp.json"
 }
