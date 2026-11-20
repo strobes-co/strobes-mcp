@@ -1,38 +1,46 @@
 # Strobes search query language
 
-Used by `search_query` on `list_assets`, `list_findings`, `list_engagements`.
+`search_query` on `list_assets`, `list_findings`, `list_engagements` and
+`update_findings` is **DjangoQL**. Every example below was checked against the API.
 
-## Shape
-`<field> <operator> <value> [and|or <field> <operator> <value> ...]`
+## Syntax
+- Compare: `=`, `!=`, `>`, `>=`, `<`, `<=`
+- Contains / doesn't contain (case-insensitive): `~`, `!~` — `title ~ "sql injection"`
+- Lists: `in (...)`, `not in (...)` — `state in (0, 1)`, `id in (101, 102)`
+- Combine with `and` / `or`, group with `( )`
+- Strings and dates in quotes: `"prod"`, `"2027-01-01"`
+- Relations use dots: `asset.id = 12`, `asset.name ~ "payments"`
+- Yes/no flags are **strings**: `exploit_available = "true"` (not `= true`)
+- There is no `like` operator — use `~`
 
-## Operators
-- `=`, `!=`, `>`, `<`, `>=`, `<=`
-- `in (v1,v2,...)` / `not in (...)`
-- `like` (substring, use with strings)
-- boolean values: `true` / `false`
+## Codes
+| field | values |
+|---|---|
+| finding `severity` | 1 info, 2 low, 3 medium, 4 high, 5 critical |
+| finding `state` | 0 new, 1 active, 2 resolved, 3 duplicate, 4 not applicable, 5 committed, 6 accepted risk, 7 won't fix |
+| finding `bug_level` | 1 code, 2 web, 3 mobile, 4 network, 5 cloud, 6 package |
+| asset `type` | 1 web, 2 mobile, 3 network, 4 cloud, 5 website, 6 API service, 7 code repo … (`strobes_reference` has more) |
+| asset `sensitivity` | 0 none, 1 low, 2 medium, 3 high, 4 critical |
+| asset `exposed` | 1 high (internet-facing), 2 medium, 3 low |
+| engagement `state` | 1 new, 2 in progress, 4 completed, 5 retest requested, 6 finished, 7 on hold |
 
-## Common finding (bug) fields
-- `id` — numeric id (e.g. `id = 42`, `id in (1,2,3)`)
-- `severity` — 1..5 (5=Critical)
-- `state` — 1=Open,2=Closed,3=False Positive,4=Accepted Risk,5=Duplicate,6=Out of Scope
-- `bug_level` — 1=Code,2=Web,3=Mobile,4=Network,5=Cloud,6=Package
-- `cvss` — float, e.g. `cvss >= 7`
-- `exploit_available` — boolean
-- `patch_available` — boolean
-- `sla_violated` — boolean
-- `title` — `title like 'sql injection'`
-- `tags` — `tags in (production)`
+"Open" findings are `state in (0, 1)`.
 
-## Common asset fields
-- `id`, `name`, `target`
-- `type` — 1=Web,2=Mobile,3=Network,4=Cloud,7=Code
-- `risk_score` — numeric, e.g. `risk_score >= 70`
-- `sensitivity` — 1..4
-- `exposed` — 1=Public,2=Internal
-- `tags` — `tags in (external,production)`
+## Findings
+- `severity = 5 and state in (0, 1)` — open criticals
+- `cvss >= 7 and exploit_available = "true"` — exploitable, high CVSS
+- `title ~ "sql"` — title contains "sql"
+- `asset.id = 12` / `asset.name ~ "payments"` — on an asset
+- `finding_tags = "pci"` — tagged findings; `asset_tags = "prod"` — on tagged assets
+- `due_date < "2027-01-01"` — due before a date
+- `id in (101, 102, 103)` — exact set (use this for `update_findings`)
 
-## Examples
-- `severity = 5 and state = 1` — critical, still open
-- `cvss >= 9 and exploit_available = true` — weaponised criticals
-- `type = 1 and risk_score >= 50` — risky web assets
-- `tags in (pci) and state != 2` — unresolved on PCI-tagged items
+## Assets
+- `type = 1` — web apps; `exposed = 1` — internet-facing
+- `sensitivity >= 3` — high/critical business sensitivity
+- `risk_score >= 70`
+- `target ~ "example.com"`, `name ~ "payments"`
+- `asset_tags = "prod"`
+
+## Engagements
+- `state = 2` — in progress; `name ~ "web"`
