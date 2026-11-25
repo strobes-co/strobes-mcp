@@ -28,6 +28,8 @@ BUG_DETAIL = BUG_LIST + """
 ENGAGEMENT = """
   id engagementCustomId name state scheduledDate deliveryDate subscribedServices
   isSelfManagedEngagement isAgenticAssessment engagementCompletion assessmentsCount
+  assignees { email firstName lastName }
+  createdBy { email firstName lastName }
   created updated
 """
 COMMENT = "id comment internal created bugId engagementId commentedBy { email firstName lastName }"
@@ -135,6 +137,13 @@ mutation CreateEngagement($org: UUID, $name: String, $scheduled: Date, $delivery
       deliveryDate: $delivery, subscribedServices: $services, plans: $plans,
       isSelfManaged: $selfManaged, assessmentData: $assessment,
       executiveSummary: $summary, fields: $fields, documentIds: $documents) {{
+    engagement {{ {ENGAGEMENT} }}
+  }}
+}}"""
+
+UPDATE_ENGAGEMENT = f"""
+mutation UpdateEngagement($org: UUID!, $id: UUID!, $state: Int) {{
+  updateEngagement(organizationId: $org, engagementId: $id, state: $state) {{
     engagement {{ {ENGAGEMENT} }}
   }}
 }}"""
