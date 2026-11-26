@@ -487,11 +487,21 @@ def _finding(b: dict[str, Any] | None) -> dict[str, Any]:
     return render.compact(out)
 
 
+def _user_name(u: Any) -> str | None:
+    if not isinstance(u, dict):
+        return None
+    return u.get("email") or " ".join(filter(None, [u.get("firstName"), u.get("lastName")])) or None
+
+
 def _engagement(e: dict[str, Any] | None) -> dict[str, Any]:
     if not e:
         return {}
     out = render.snake_keys(e)
     out["state"] = _label(ENGAGEMENT_STATE, e.get("state"))
+    assignees = e.get("assignees")
+    if isinstance(assignees, list):
+        out["assigned_to"] = [_user_name(u) for u in assignees if _user_name(u)]
+    out["created_by"] = _user_name(e.get("createdBy"))
     return render.compact(out)
 
 
@@ -865,6 +875,27 @@ async def create_engagement(
         "summary": executive_summary, "fields": "{}", "documents": []},
         op="createEngagement"))["createEngagement"] or {}
     return {"created": _engagement(p.get("engagement"))}
+
+
+EngagementStateName = Literal["new", "in_progress", "completed", "retest_requested", "finished", "on_hold"]
+
+
+@tool(WRITE, "Update engagement state")
+async def update_engagement(
+    ctx: Context,
+    engagement_id: Annotated[str, Field(description="Engagement UUID.")],
+    state: Annotated[EngagementStateName, Field(description="New state.")],
+) -> dict[str, Any]:
+    """Change an engagement's state (e.g. in_progress, completed, finished, on_hold)."""
+    api = SESSION.api(ctx)
+    variables: dict[str, Any] = {
+        "org": api.profile.org_id,
+        "id": engagement_id,
+        "state": _rev(ENGAGEMENT_STATE)[state],
+    }
+    p = (await api.graphql(Q.UPDATE_ENGAGEMENT, variables,
+                           op="updateEngagement"))["updateEngagement"] or {}
+    return {"updated": _engagement(p.get("engagement"))}
 
 
 @tool(WRITE, "Comment on an engagement")
